@@ -1,0 +1,90 @@
+{
+  "entities": {
+    "Post": {
+      "title": "Community Post",
+      "description": "An update or announcement posted by a member.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "category": { "type": "string" },
+        "subCategory": { "type": "string" },
+        "mediaUrl": { "type": "string" },
+        "mediaType": { "type": "string" },
+        "likes": { "type": "number" },
+        "views": { "type": "number" },
+        "comments": {
+          "type": "array",
+          "items": { "$ref": "#/entities/Comment" }
+        },
+        "time": { "type": "number" },
+        "uid": { "type": "string" }
+      },
+      "required": ["title", "content", "category", "time", "uid"]
+    },
+    "Comment": {
+      "title": "Post Comment",
+      "description": "A comment left on a post.",
+      "type": "object",
+      "properties": {
+        "user": { "type": "string" },
+        "msg": { "type": "string" },
+        "time": { "type": "number" }
+      },
+      "required": ["user", "msg", "time"]
+    },
+    "ChatMessage": {
+      "title": "Chat Message",
+      "description": "A message in the live chat.",
+      "type": "object",
+      "properties": {
+        "msg": { "type": "string" },
+        "time": { "type": "number" },
+        "uid": { "type": "string" }
+      },
+      "required": ["msg", "time", "uid"]
+    },
+    "ProblemReport": {
+      "title": "Problem Report",
+      "description": "A reported community issue.",
+      "type": "object",
+      "properties": {
+        "msg": { "type": "string" },
+        "time": { "type": "number" },
+        "uid": { "type": "string" }
+      },
+      "required": ["msg", "time", "uid"]
+    },
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "Basic information about a user.",
+      "type": "object",
+      "properties": {
+        "username": { "type": "string" },
+        "village": { "type": "string" },
+        "office": { "type": "string" },
+        "bio": { "type": "string" },
+        "time": { "type": "number" }
+      },
+      "required": ["username", "time"]
+    }
+  },
+  "firestore": {
+    "posts/{postId}": {
+      "schema": "Post",
+      "description": "Collection of community updates."
+    },
+    "chat/{chatId}": {
+      "schema": "ChatMessage",
+      "description": "Global chat messages."
+    },
+    "problems/{problemId}": {
+      "schema": "ProblemReport",
+      "description": "Reported village issues."
+    },
+    "users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profile data."
+    }
+  }
+}

@@ -1,0 +1,119 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Help Primitives
+    function isSignedIn() { return request.auth != null; }
+    function isAdmin() { return isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid)); }
+    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
+    function isDataOwner(data) { return isSignedIn() && request.auth.uid == data.uid; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+
+    // Validation Blueprints
+    function isValidPost(data) {
+      return data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
+             data.content is string &&
+             data.category is string &&
+             data.subCategory is string &&
+             data.mediaUrl is string &&
+             data.mediaType is string &&
+             data.likes is number &&
+             data.likedBy is list &&
+             data.views is number &&
+             data.comments is list &&
+             (data.uid == request.auth.uid || isAdmin()) &&
+             data.userName is string &&
+             data.time is number &&
+             data.keys().hasAll(['title', 'content', 'category', 'subCategory', 'mediaUrl', 'mediaType', 'likes', 'likedBy', 'views', 'comments', 'time', 'uid', 'userName']) &&
+             data.keys().size() == 13;
+    }
+
+    function isValidUser(data) {
+      return data.username is string && data.username.size() >= 2 && data.username.size() <= 32 &&
+             data.time is number;
+    }
+
+    // Default testing path to prevent initial crash
+    match /test/connection {
+      allow read: if true;
+    }
+
+    // 1. Posts
+    match /posts/{postId} {
+      allow read: if true;
+      allow create: if isSignedIn() && isValidId(postId) && isValidPost(incoming());
+      allow update: if isSignedIn() && (
+        isAdmin() ||
+        // Action: View/Like
+        (incoming().diff(existing()).affectedKeys().hasOnly(['likes', 'likedBy', 'views'])) ||
+        // Action: Comment
+        (incoming().diff(existing()).affectedKeys().hasOnly(['comments']) && incoming().comments.size() <= existing().comments.size() + 1) ||
+        // Action: Full Edit (Owner Only)
+        (isDataOwner(existing()) && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'content', 'category', 'subCategory', 'mediaUrl', 'mediaType']))
+      );
+      allow delete: if isDataOwner(existing()) || isAdmin();
+    }
+
+    // 2. Chat
+    match /chat/{chatId} {
+      allow read: if true; // Global chat
+      allow create: if isSignedIn() && isValidId(chatId) &&
+                       incoming().msg is string && incoming().msg.size() > 0 &&
+                       incoming().uid == request.auth.uid &&
+                       incoming().time is number &&
+                       incoming().keys().hasAll(['msg', 'time', 'uid']) &&
+                       incoming().keys().size() == 3;
+    }
+
+    // 3. User Profiles
+    match /users/{userId} {
+      allow get: if true;
+      allow list: if false; // Prevention of user scraping
+      allow create, update: if isOwner(userId);
+    }
+
+    // 4. Problems
+    match /problems/{problemId} {
+      allow read: if true;
+      allow create: if isSignedIn() && isValidId(problemId) &&
+                       incoming().msg is string && incoming().msg.size() > 0 &&
+                       incoming().category is string &&
+                       incoming().status is string &&
+                       incoming().uid == request.auth.uid &&
+                       incoming().time is number &&
+                       incoming().keys().hasAll(['msg', 'category', 'status', 'time', 'uid']) &&
+                       incoming().keys().size() == 5;
+    }
+
+    // 5. Global Updates (Ticker)
+    match /updates/{updateId} {
+      allow read: if true;
+      allow write: if false; // System only
+    }
+
+    // Requests
+    match /requests/{requestId} {
+      allow read: if true;
+      allow create: if isSignedIn();
+    }
+
+    // Suggestions
+    match /suggestions/{suggestionId} {
+      allow read: if true;
+      allow write: if false; // Admin generated
+    }
+
+    // 6. Admins (Role verification)
+    match /admins/{adminId} {
+      allow read: if true;
+      allow write: if false; // Admins are configured directly in Firebase Console manually
+    }
+  }
+}
