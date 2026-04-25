@@ -1,52 +1,7 @@
-code
-Tsx
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
-
-import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Bell, Menu, X, Home, Megaphone, FileText, Wheat, Vote, 
-  Wallet, Building, MessageCircle, Handshake, Lightbulb, 
-  AlertTriangle, Send, LogOut, ChevronDown, ChevronUp, Search, 
-  Eye, Heart, Share2, PlusCircle, Camera, User, Edit2, Save, 
-  Activity, Book, GraduationCap, BarChart3, Database, Download, 
-  Bot, Sparkles, MessageSquare, Trash2, Edit3, Settings, 
-  TrendingUp, Upload, Play, RefreshCw, Layers, Calendar, 
-  LayoutDashboard, ShieldAlert 
-} from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
-import { GoogleGenAI } from "@google/genai";
-import ReactMarkdown from 'react-markdown';
-import * as XLSX from 'xlsx';
-import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, 
-  Legend, ResponsiveContainer, Cell 
-} from 'recharts';
-import { 
-  onAuthStateChanged, signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword, signOut, signInAnonymously, 
-  GoogleAuthProvider, signInWithPopup 
-} from 'firebase/auth';
-import { 
-  collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, 
-  getDocs, increment, arrayUnion, query, orderBy, limit, 
-  setDoc, getDoc, where 
-} from 'firebase/firestore';
-
-// --- INITIALIZE FIREBASE FROM CONFIG ---
-import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
-import firebaseConfig from "../firebase-applet-config.json";
-
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const legacyDb = getFirestore(app);
-const db = firebaseConfig.firestoreDatabaseId === "(default)" || !firebaseConfig.firestoreDatabaseId 
-  ? legacyDb 
-  : getFirestore(app, firebaseConfig.firestoreDatabaseId);
 
 // --- TYPES ---
 interface Post {
@@ -81,13 +36,6 @@ interface UserProfile {
   time: number;
 }
 
-interface ChatMessage {
-  id: string;
-  msg: string;
-  time: number;
-  uid: string;
-}
-
 interface Suggestion {
   id: string;
   name: string;
@@ -105,7 +53,23 @@ interface ProblemReport {
   uid: string;
 }
 
-// --- CSS STYLES (INJECTED MANUALLY) ---
+interface ChatMessage {
+  id: string;
+  msg: string;
+  time: number;
+  uid: string;
+}
+
+interface RequestData {
+  id: string;
+  msg: string;
+  time: number;
+  uid: string;
+}
+
+import React, { useState, useEffect, useRef } from 'react';
+
+// --- STYLES ---
 const APP_STYLES = `
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Righteous&display=swap');
 
@@ -118,6 +82,7 @@ const APP_STYLES = `
   --bg-light: #f8fafc;
   --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
   --header-height: 65px;
+  --nav-bar-height: 50px;
 }
 
 body {
@@ -125,167 +90,425 @@ body {
   font-family: 'Poppins', sans-serif;
   background-color: #f1f5f9;
   color: #1e293b;
+  overflow-x: hidden;
 }
 
-.main-layout { display: flex; width: 100%; min-height: 100vh; }
-.content-area { flex: 1; padding: 24px; width: 100%; }
+header {
+  background: var(--primary);
+  height: var(--header-height);
+  padding: 0 4%;
+  display: flex;
+  justify-content: flex-start; 
+  align-items: center;
+  border-bottom: 3px solid var(--accent);
+  box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+}
+
+.brand-wrapper { display: flex; align-items: center; gap: 12px; }
+.brand-title {
+  font-family: 'Righteous', cursive;
+  font-size: 28px;
+  margin: 0;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  background: linear-gradient(135deg, #facc15 0%, #fff 30%, #38bdf8 50%, #fff 70%, #facc15 100%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shineText 5s linear infinite;
+  filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.3));
+}
+@keyframes shineText { 0% { background-position: 0% center; } 100% { background-position: 200% center; } }
+.sub-tagline { margin: 0; font-size: 10px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.9; }
+
+.logo-container { position: relative; width: 45px; height: 45px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.logo-glow { 
+  position: absolute; width: 110%; height: 110%; border-radius: 50%; 
+  background: radial-gradient(circle, rgba(250, 204, 21, 0.3) 0%, transparent 70%); 
+  animation: glowPulse 4s infinite ease-in-out; 
+}
+@keyframes glowPulse { 0%, 100% { transform: scale(1); opacity: 0.4; filter: blur(5px); } 50% { transform: scale(1.2); opacity: 0.7; filter: blur(8px); } }
+.logo-ring { transform-origin: center; animation: spin 6s linear infinite; }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+.latest-bar { 
+  background: #fff; 
+  padding: 8px 4%; 
+  display: flex; 
+  align-items: center; 
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 12px;
+}
+.latest-label { background: var(--danger); color: #fff; padding: 2px 8px; border-radius: 4px; font-weight: 800; margin-right: 12px; white-space: nowrap; font-size: 10px; }
+.latest-text { flex: 1; overflow: hidden; font-weight: 500; color: var(--primary); }
+.latest-text span { display: inline-block; white-space: nowrap; animation: scrollLeft 25s linear infinite; }
+@keyframes scrollLeft { from { transform: translateX(100%); } to { transform: translateX(-100%); } }
+
+.nav-trigger-bar {
+  background: #fff;
+  height: var(--nav-bar-height);
+  padding: 0 4%;
+  display: flex;
+  justify-content: space-between; 
+  align-items: center;
+  border-bottom: 1px solid #cbd5e1;
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+}
+
+.menu-toggle {
+  background: var(--primary);
+  border: none;
+  color: white;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.menu-toggle span { 
+  display: block; 
+  width: 18px;
+  height: 2px;
+  background: white; 
+  border-radius: 1px;
+}
+
+.main-layout {
+  display: flex;
+  width: 100%;
+  margin: 0;
+  min-height: 100vh;
+}
 
 .sidebar {
   width: 0;
   transition: width 0.3s ease;
   background: #fff;
-  overflow: hidden;
   border-right: 0 solid #e2e8f0;
+  flex-shrink: 0;
+  overflow: hidden;
 }
-.sidebar-open .sidebar { width: 250px; border-right: 1px solid #e2e8f0; }
+
+.main-layout.sidebar-open .sidebar {
+  width: 250px;
+  border-right: 1px solid #e2e8f0;
+}
+
+.sidebar-content {
+  width: 250px;
+  padding: 15px;
+  box-sizing: border-box;
+}
+
+.side-btn { 
+  display: flex; align-items: center; width: 100%; padding: 12px 15px; margin-bottom: 6px; 
+  background: transparent; color: #64748b; border-radius: 10px; font-weight: 500; cursor: pointer; 
+  transition: all 0.2s ease; font-size: 14px; border: none; text-align: left; gap: 10px;
+}
+.side-btn:hover { background: #f1f5f9; color: var(--primary); }
+.side-btn.active-tab { 
+  background: #f1f5f9 !important; 
+  color: var(--primary) !important; 
+  box-shadow: inset 4px 0 0 var(--primary); 
+}
+
+.content-area {
+  flex: 1;
+  padding: 24px;
+  width: 100%;
+}
 
 .section-card { 
   background: #fff; border-radius: 16px; padding: 20px; 
   box-shadow: var(--card-shadow); margin-bottom: 25px; 
   border: 1px solid rgba(0,0,0,0.05);
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease;
 }
-.card-gold { border-top: 4px solid var(--accent); }
+.section-card:hover { transform: translateY(-3px); box-shadow: 0 10px 20px rgba(0,0,0,0.1); }
 .card-blue { border-top: 4px solid var(--primary); }
+.card-gold { border-top: 4px solid var(--accent); }
 
-.btn-primary { 
-  background: var(--primary); color: #fff; border: none; 
-  padding: 12px 25px; border-radius: 12px; font-weight: 600; cursor: pointer;
+.post-container {
+  background: #fff; border-radius: 16px; padding: 20px; 
+  border: 1px solid rgba(0,0,0,0.08); margin-bottom: 20px;
 }
+.post-title { font-size: 20px; font-weight: 700; color: #1e293b; margin: 0 0 12px 0; }
+.post-body { font-size: 15px; color: #334155; line-height: 1.6; margin: 0 0 16px 0; white-space: pre-wrap; }
+.post-media { width: 100%; max-height: 400px; object-fit: contain; border-radius: 12px; margin-bottom: 12px; }
 
 input, textarea, select { 
   width: 100%; padding: 12px 16px; margin-bottom: 12px; 
   border: 1.5px solid #e2e8f0; border-radius: 12px; outline: none;
 }
+.btn-primary { 
+  background: var(--primary); color: #fff; border: none; 
+  padding: 12px 25px; border-radius: 12px; font-weight: 600; cursor: pointer;
+}
+
+@media (max-width: 900px) {
+  .main-layout.sidebar-open .sidebar {
+    position: fixed; width: 260px; height: 80vh; top: 120px; left: 15px; z-index: 1100; border-radius: 15px; box-shadow: 10px 10px 40px rgba(0,0,0,0.15);
+  }
+}
 `;
 
-// --- MAIN APP COMPONENT ---
+import { 
+  Bell, Menu, X, Home, Megaphone, FileText, Wheat, Vote, 
+  Wallet, Building, MessageCircle, Handshake, Lightbulb, 
+  AlertTriangle, Send, LogOut, ChevronDown, ChevronUp, Search,
+  Eye, Heart, Share2, PlusCircle, Camera, User, Edit2, Save,
+  Activity, Book, GraduationCap, BarChart3, Database, Download, Bot, Sparkles, MessageSquare,
+  Trash2, Edit3, Settings, TrendingUp, Upload, Play, RefreshCw, Layers, Calendar, LayoutDashboard, ShieldAlert
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { GoogleGenAI } from "@google/genai";
+import ReactMarkdown from 'react-markdown';
+import * as XLSX from 'xlsx';
+import { 
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell
+} from 'recharts';
+import { 
+  onAuthStateChanged, signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, signOut, signInAnonymously,
+  GoogleAuthProvider, signInWithPopup
+} from 'firebase/auth';
+import { 
+  collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, getDocs,
+  increment, arrayUnion, query, orderBy, limit, setDoc, getDoc, where
+} from 'firebase/firestore';
+import { initializeApp } from "firebase/app";
+import { getAuth } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
+import firebaseConfig from "../firebase-applet-config.json";
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const legacyDb = getFirestore(app);
+const db = firebaseConfig.firestoreDatabaseId === "(default)" || !firebaseConfig.firestoreDatabaseId 
+  ? legacyDb 
+  : getFirestore(app, firebaseConfig.firestoreDatabaseId);
+
 export default function App() {
-  // Styles Injection
+  // Injection of global styles
   useEffect(() => {
     const styleEl = document.createElement('style');
+    styleEl.className = 'injected-app-styles';
     styleEl.innerHTML = APP_STYLES;
     document.head.appendChild(styleEl);
-    return () => { document.head.removeChild(styleEl); };
+    return () => { 
+      const existing = document.querySelector('.injected-app-styles');
+      if (existing) document.head.removeChild(existing); 
+    };
   }, []);
 
   const [user, setUser] = useState<any>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [currentTab, setCurrentTab] = useState('home');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [currentTab, setCurrentTab] = useState('home');
+  const [currentFilter, setCurrentFilter] = useState('All');
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [toasts, setToasts] = useState<{ id: number, msg: string }[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [expandedPosts, setExpandedPosts] = useState<Set<string>>(new Set());
 
-  // Auth State
+  // Listeners for Auth & Database
   useEffect(() => {
-    return onAuthStateChanged(auth, async (u) => {
+    const unsubAuth = onAuthStateChanged(auth, async (u) => {
       setUser(u);
       if (u) {
-        onSnapshot(doc(db, 'admins', u.uid), (snap) => {
-          setIsAdmin(snap.exists());
-        });
+          const profileRef = doc(db, 'users', u.uid);
+          onSnapshot(profileRef, (snap) => {
+            if (snap.exists()) setUserProfile({ id: snap.id, ...snap.data() } as UserProfile);
+          });
+
+          onSnapshot(doc(db, 'admins', u.uid), (snap) => {
+            setIsAdmin(snap.exists());
+          });
       } else {
         setIsAdmin(false);
         signInAnonymously(auth);
       }
     });
+
+    const unsubPosts = onSnapshot(query(collection(db, 'posts')), (snap) => {
+      const pArr: Post[] = [];
+      snap.forEach((d) => pArr.push({ id: d.id, ...d.data() } as Post));
+      setPosts(pArr.sort((a, b) => b.time - a.time));
+    });
+
+    return () => { unsubAuth(); unsubPosts(); };
   }, []);
+
+  const addToast = (msg: string) => {
+    const id = Date.now();
+    setToasts(prev => [...prev, { id, msg }]);
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3000);
+  };
 
   return (
     <div className={`main-layout ${sidebarOpen ? 'sidebar-open' : ''}`}>
-      {/* Sidebar */}
-      <aside className="sidebar">
-        <div style={{ padding: '20px' }}>
-          <h2 style={{ color: 'var(--primary)', marginBottom: '20px' }}>E-VEDHIKA</h2>
-          <button onClick={() => setCurrentTab('home')} className="side-btn">Home</button>
-          <button onClick={() => setCurrentTab('workspace')} className="side-btn">Workspace</button>
-          {isAdmin && <button onClick={() => setCurrentTab('admin')} className="side-btn">Admin Panel</button>}
+      {/* Toast Overlay */}
+      <div style={{ position: 'fixed', top: 20, right: 20, zIndex: 999 }}>
+        <AnimatePresence>
+          {toasts.map(t => (
+            <motion.div key={t.id} initial={{ x: 100 }} animate={{ x: 0 }} exit={{ x: 100 }} style={{ background: '#0d3b66', color: 'white', padding: '12px 24px', borderRadius: '12px', marginBottom: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>
+              {t.msg}
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
+
+      <header style={{ width: '100%', position: 'fixed', top: 0, zIndex: 100 }}>
+        <div className="brand-wrapper" style={{ padding: '0 20px', height: '65px', background: '#0d3b66', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+            <Menu className="cursor-pointer" onClick={() => setSidebarOpen(!sidebarOpen)} />
+            <h1 style={{ fontFamily: 'Righteous', fontSize: '24px', margin: 0 }}>E-VEDHIKA</h1>
+          </div>
+          {user && <span className="text-sm">Hi, {userProfile?.username || 'Member'}</span>}
+        </div>
+      </header>
+
+      <aside className="sidebar" style={{ paddingTop: '80px', height: '100vh', position: 'fixed', left: 0, background: 'white' }}>
+        <div className="sidebar-content">
+          <MenuButton label="Home" active={currentTab === 'home'} onClick={() => setCurrentTab('home')} icon={Home} />
+          <MenuButton label="Workspace" active={currentTab === 'workspace'} onClick={() => setCurrentTab('workspace')} icon={LayoutDashboard} />
+          {isAdmin && <MenuButton label="Admin Panel" active={currentTab === 'admin'} onClick={() => setCurrentTab('admin')} icon={ShieldAlert} />}
+          <MenuButton label="Profile" active={currentTab === 'profile'} onClick={() => setCurrentTab('profile')} icon={User} />
+          <MenuButton label="Logout" active={false} onClick={() => signOut(auth)} icon={LogOut} />
         </div>
       </aside>
 
-      {/* Content */}
-      <main className="content-area">
-        <header style={{ display: 'flex', gap: '20px', alignItems: 'center', marginBottom: '20px' }}>
-          <button onClick={() => setSidebarOpen(!sidebarOpen)}><Menu /></button>
-          <h1 style={{ margin: 0 }}>Mana Panchayath</h1>
-        </header>
-
+      <main className="content-area" style={{ marginTop: '80px', marginLeft: sidebarOpen ? '250px' : '0', transition: 'margin 0.3s' }}>
         <AnimatePresence mode="wait">
-          {currentTab === 'home' && <HomeSection />}
-          {currentTab === 'admin' && isAdmin && <AdminSection />}
-          {currentTab === 'workspace' && <div className="section-card card-blue">Workspace Features Here</div>}
+          {currentTab === 'home' && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <div className="section-card card-gold">
+                <h2 className="text-xl font-bold mb-4">Community Updates</h2>
+                {posts.map(post => (
+                  <div key={post.id} className="post-container mb-4 p-4 border rounded">
+                    <h3 className="font-bold text-lg">{post.title}</h3>
+                    <p className="text-gray-600 line-clamp-3">{post.content}</p>
+                    <div className="mt-2 flex gap-4 text-sm text-gray-400">
+                      <span>❤️ {post.likes}</span>
+                      <span>👁️ {post.views}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          )}
+
+          {currentTab === 'admin' && isAdmin && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <AdminManagementPanel addToast={addToast} />
+            </motion.div>
+          )}
+
+          {currentTab === 'profile' && <ProfileSection user={user} profile={userProfile} addToast={addToast} />}
+          {currentTab === 'workspace' && <div className="section-card">Workspace Features Coming Soon...</div>}
         </AnimatePresence>
       </main>
     </div>
   );
 }
 
-// --- SUB SECTIONS ---
-
-function HomeSection() {
-  return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="section-card card-gold">
-      <h2>Welcome to Communities Update Hub</h2>
-      <p>Stay updated with latest government orders and local news.</p>
-    </motion.div>
-  );
-}
-
-function AdminSection() {
+// Side Components
+function AdminManagementPanel({ addToast }: { addToast: (s: string) => void }) {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [admins, setAdmins] = useState<string[]>([]);
-  
+  const [search, setSearch] = useState('');
+
   useEffect(() => {
     const unsubUsers = onSnapshot(collection(db, 'users'), (snap) => {
       const list: UserProfile[] = [];
       snap.forEach(d => list.push({ id: d.id, ...d.data() } as UserProfile));
       setUsers(list);
     });
-
     const unsubAdmins = onSnapshot(collection(db, 'admins'), (snap) => {
       const list: string[] = [];
       snap.forEach(d => list.push(d.id));
       setAdmins(list);
     });
-
     return () => { unsubUsers(); unsubAdmins(); };
   }, []);
 
   const toggleAdmin = async (uid: string, isCurrentlyAdmin: boolean) => {
-    const ref = doc(db, 'admins', uid);
-    if (isCurrentlyAdmin) {
-      await deleteDoc(ref);
-    } else {
-      await setDoc(ref, { role: 'admin', time: Date.now() });
-    }
+    try {
+      const ref = doc(db, 'admins', uid);
+      if (isCurrentlyAdmin) {
+        if (admins.length <= 1) return addToast("Check: Need at least one admin.");
+        await deleteDoc(ref);
+        addToast("Admin role revoked.");
+      } else {
+        await setDoc(ref, { role: 'admin', assignedAt: Date.now() });
+        addToast("Admin role promoted.");
+      }
+    } catch (err) { addToast("Action failed."); }
   };
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="section-card card-blue">
-      <h3>Role Management Console</h3>
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead>
-          <tr style={{ textAlign: 'left', background: '#f8fafc' }}>
-            <th style={{ padding: '10px' }}>User</th>
-            <th style={{ padding: '10px' }}>Role</th>
-            <th style={{ padding: '10px' }}>Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          {users.map(u => (
-            <tr key={u.id}>
-              <td style={{ padding: '10px' }}>{u.username || u.id}</td>
-              <td style={{ padding: '10px' }}>{admins.includes(u.id) ? 'Admin' : 'Member'}</td>
-              <td style={{ padding: '10px' }}>
-                <button 
-                  onClick={() => toggleAdmin(u.id, admins.includes(u.id))}
-                  className="btn-primary"
-                  style={{ padding: '4px 12px', background: admins.includes(u.id) ? '#ef4444' : 'var(--primary)' }}
-                >
-                  {admins.includes(u.id) ? 'Revoke' : 'Promote'}
-                </button>
-              </td>
+    <div className="section-card card-blue">
+      <h3 className="text-xl font-bold mb-4 flex items-center gap-2"><ShieldAlert className="text-red-600" /> User Role Management</h3>
+      <input placeholder="Search users by name..." className="mb-4" value={search} onChange={e => setSearch(e.target.value)} />
+      <div className="overflow-x-auto">
+        <table className="w-full text-left">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="p-3">User</th>
+              <th className="p-3">Role</th>
+              <th className="p-3 text-right">Action</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </motion.div>
+          </thead>
+          <tbody>
+            {users.filter(u => u.username?.toLowerCase().includes(search.toLowerCase())).map(u => {
+              const isUserAdmin = admins.includes(u.id);
+              return (
+                <tr key={u.id} className="border-b">
+                  <td className="p-3 font-semibold">{u.username || 'Member'}</td>
+                  <td className="p-3">
+                    <span className={`px-2 py-1 rounded-full text-xs font-bold ${isUserAdmin ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>
+                      {isUserAdmin ? 'Administrator' : 'Member'}
+                    </span>
+                  </td>
+                  <td className="p-3 text-right">
+                    <button onClick={() => toggleAdmin(u.id, isUserAdmin)} className={`text-xs font-bold px-3 py-1.5 rounded-lg ${isUserAdmin ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-600'}`}>
+                       {isUserAdmin ? 'Revoke Admin' : 'Make Admin'}
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function ProfileSection({ profile, addToast }: { user: any, profile: UserProfile | null, addToast: (s:string)=>void }) {
+  return (
+    <div className="section-card card-gold">
+      <h3 className="text-xl font-bold mb-4">My Account</h3>
+      <div className="p-4 bg-gray-50 rounded-xl space-y-2">
+         <p><strong>Username:</strong> {profile?.username || 'N/A'}</p>
+         <p><strong>Village:</strong> {profile?.village || 'Not set'}</p>
+         <p><strong>Office:</strong> {profile?.office || 'Not set'}</p>
+      </div>
+      <button className="btn-primary mt-4 w-full">Edit Profile Settings</button>
+    </div>
+  );
+}
+
+function MenuButton({ label, active, onClick, icon: Icon }: { label: string, active: boolean, onClick: () => void, icon?: any }) {
+  return (
+    <button onClick={onClick} className={`side-btn ${active ? 'active-tab' : ''}`}>
+      {Icon && <Icon size={18} />}
+      {label}
+    </button>
   );
 }
